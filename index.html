@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>สมรภูมิการเมือง: เส้นทางสู่อำนาจ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Sarabun', sans-serif; 
+            /* ภาพพื้นหลังรัฐสภาหรือสถาปัตยกรรมการเมือง พร้อม Overlay สีเข้มเพื่อให้ UI โดดเด่น */
+            background-image: linear-gradient(rgba(15, 23, 42, 0.6), rgba(15, 23, 42, 0.7)), url('https://images.unsplash.com/photo-1541804445657-3f35c6020cbf?auto=format&fit=crop&q=80&w=1920');
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            color: #1e293b; /* Dark text for light glassmorphism */
+            overflow-x: hidden; 
+        }
+        
+        /* Glassmorphism Styles */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.65);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        .glass-board {
+            background: rgba(255, 255, 255, 0.35);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 4px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15), inset 0 0 20px rgba(255, 255, 255, 0.5);
+        }
+
+        .gold-text { color: #b48608; text-shadow: 1px 1px 0px rgba(255,255,255,0.8); }
+        .gold-bg { background: linear-gradient(to right, #bf953f, #fcf6ba, #b38728, #fbf5b7, #aa771c); color: #0b1c3f; }
+        
+        /* Board Grid Setup */
+        #board-container {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            grid-template-rows: repeat(7, 1fr);
+            gap: 4px;
+            width: 100%;
+            max-width: 680px;
+            aspect-ratio: 1 / 1;
+            margin: 0 auto;
+            border-radius: 16px;
+            padding: 6px;
+        }
+
+        .board-cell {
+            background: rgba(255, 255, 255, 0.9);
+            color: #0f172a;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px;
+            font-size: 0.65rem;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.9);
+            box-shadow: inset 1px 1px 3px rgba(255,255,255,1), 1px 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .board-cell.corner { 
+            font-weight: bold; 
+            background: linear-gradient(145deg, #f1f5f9, #e2e8f0); 
+            border: 2px solid #cbd5e1;
+        }
+        .board-cell.card-space { 
+            background: linear-gradient(145deg, #fffbeb, #fef3c7); 
+            border: 2px solid #fcd34d; 
+        }
+        
+        .cell-name { font-weight: 800; line-height: 1.1; margin-top: 2px; }
+        .cell-price { font-size: 0.6rem; color: #b30000; font-weight: bold; }
+        .cell-owner-bar { height: 6px; width: 100%; position: absolute; bottom: 0; left: 0; }
+
+        /* Tokens */
+        .token {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            position: absolute;
+            border: 2px solid white;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+            transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            z-index: 10;
+        }
+        .token-p1 { background: radial-gradient(circle at 30% 30%, #ff6b6b, #c92a2a); top: 15%; left: 15%; }
+        .token-p2 { background: radial-gradient(circle at 30% 30%, #4dabf7, #1864ab); top: 15%; right: 15%; }
+        .token-p3 { background: radial-gradient(circle at 30% 30%, #51cf66, #2b8a3e); bottom: 15%; left: 15%; }
+        .token-p4 { background: radial-gradient(circle at 30% 30%, #fcc419, #e67700); bottom: 15%; right: 15%; }
+
+        /* Center Action Area */
+        #center-ui {
+            grid-column: 2 / 7;
+            grid-row: 2 / 7;
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border: 2px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+        }
+
+        /* Animations */
+        @keyframes popIn {
+            0% { transform: scale(0.8) translateY(20px); opacity: 0; }
+            100% { transform: scale(1) translateY(0); opacity: 1; }
+        }
+        .animate-pop { animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+        @keyframes cardFlip {
+            0% { transform: rotateY(90deg) scale(0.9); opacity: 0; }
+            100% { transform: rotateY(0deg) scale(1); opacity: 1; }
+        }
+        .animate-card { animation: cardFlip 0.6s ease-out forwards; }
+
+        /* 3D Dice Styles */
+        .dice-scene { width: 50px; height: 50px; perspective: 400px; display: inline-block; }
+        .cube { width: 50px; height: 50px; position: relative; transform-style: preserve-3d; transition: transform 0.6s cubic-bezier(0.25, 1, 0.5, 1); }
+        .cube.rolling { animation: spinCube 0.4s linear infinite; }
+        .face { position: absolute; width: 50px; height: 50px; border: 2px solid rgba(255,255,255,0.8); border-radius: 10px; display: flex; justify-content: center; align-items: center; font-weight: 900; font-size: 24px; box-shadow: inset 0 0 10px rgba(0,0,0,0.3); }
+        .face-red { background: linear-gradient(135deg, #ef4444, #b91c1c); color: white; border-color: #fca5a5; }
+        .face-white { background: linear-gradient(135deg, #ffffff, #e2e8f0); color: #0f172a; border-color: #94a3b8; }
+        .front  { transform: rotateY(  0deg) translateZ(25px); }
+        .back   { transform: rotateY(180deg) translateZ(25px); }
+        .right  { transform: rotateY( 90deg) translateZ(25px); }
+        .left   { transform: rotateY(-90deg) translateZ(25px); }
+        .top    { transform: rotateX( 90deg) translateZ(25px); }
+        .bottom { transform: rotateX(-90deg) translateZ(25px); }
+        @keyframes spinCube {
+            0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+            100% { transform: rotateX(360deg) rotateY(720deg) rotateZ(360deg); }
+        }
+
+        button:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+        
+        .btn-premium {
+            box-shadow: 0 4px 6px rgba(0,0,0,0.15);
+            transition: all 0.2s;
+        }
+        .btn-premium:active {
+            transform: translateY(2px);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+        }
+
+        /* Custom Scrollbar */
+        #game-log::-webkit-scrollbar { width: 6px; }
+        #game-log::-webkit-scrollbar-track { background: rgba(0,0,0,0.05); }
+        #game-log::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.2); border-radius: 3px; }
+
+        @media (min-width: 640px) {
+            .board-cell { font-size: 0.75rem; }
+            .cell-price { font-size: 0.7rem; }
+            .token { width: 20px; height: 20px; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Confirmation Modals -->
+    <div id="confirm-home-modal" class="hidden fixed inset-0 bg-slate-900/80 z-[110] flex items-center justify-center p-4 backdrop-blur-md">
+        <div class="glass-panel border-4 border-slate-400 rounded-3xl p-6 text-center max-w-sm w-full bg-white/95 animate-pop">
+            <h2 class="text-2xl font-extrabold text-slate-800 mb-2">กลับหน้าแรก?</h2>
+            <p class="text-slate-600 mb-6 font-bold">เกมที่กำลังเล่นอยู่จะถูกยกเลิกทั้งหมด</p>
+            <div class="flex gap-3">
+                <button onclick="document.getElementById('confirm-home-modal').classList.add('hidden')" class="flex-1 py-3 rounded-xl border-2 border-slate-300 text-slate-700 font-bold hover:bg-slate-100 transition">ยกเลิก</button>
+                <button onclick="goHome()" class="flex-1 py-3 rounded-xl bg-red-500 text-white font-bold hover:bg-red-400 border border-red-600 shadow-md transition">ยืนยัน</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="confirm-restart-modal" class="hidden fixed inset-0 bg-slate-900/80 z-[110] flex items-center justify-center p-4 backdrop-blur-md">
+        <div class="glass-panel border-4 border-amber-400 rounded-3xl p-6 text-center max-w-sm w-full bg-white/95 animate-pop">
+            <h2 class="text-2xl font-extrabold text-slate-800 mb-2">เริ่มเกมใหม่?</h2>
+            <p class="text-slate-600 mb-6 font-bold">กระดานจะถูกรีเซ็ตใหม่ทั้งหมด</p>
+            <div class="flex gap-3">
+                <button onclick="document.getElementById('confirm-restart-modal').classList.add('hidden')" class="flex-1 py-3 rounded-xl border-2 border-slate-300 text-slate-700 font-bold hover:bg-slate-100 transition">ยกเลิก</button>
+                <button onclick="restartGame()" class="flex-1 py-3 rounded-xl bg-amber-500 text-white font-bold hover:bg-amber-400 border border-amber-600 shadow-md transition">ยืนยัน</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start Screen Modal -->
+    <div id="start-screen-modal" class="fixed inset-0 bg-slate-900/80 z-[100] flex items-center justify-center p-4 backdrop-blur-md">
+        <div class="glass-panel border-4 border-amber-400 rounded-3xl p-6 sm:p-10 text-center max-w-md w-full shadow-[0_0_40px_rgba(255,255,255,0.3)] bg-white/95">
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-slate-800 mb-2 drop-shadow-sm">สมรภูมิการเมือง</h1>
+            <p class="text-amber-600 font-bold mb-6 text-lg">เส้นทางสู่อำนาจ</p>
+            
+            <div class="mb-6 text-left">
+                <label class="block text-slate-700 font-bold mb-2 text-center">เลือกจำนวนผู้เล่น (2-4 คน):</label>
+                <div class="flex gap-3 justify-center">
+                    <button onclick="selectPlayers(2)" id="btn-p2" class="player-select-btn flex-1 py-3 rounded-xl border-2 border-slate-300 text-slate-700 font-bold hover:bg-amber-100 transition">2 คน</button>
+                    <button onclick="selectPlayers(3)" id="btn-p3" class="player-select-btn flex-1 py-3 rounded-xl border-2 border-slate-300 text-slate-700 font-bold hover:bg-amber-100 transition">3 คน</button>
+                    <button onclick="selectPlayers(4)" id="btn-p4" class="player-select-btn flex-1 py-3 rounded-xl border-2 border-slate-300 text-slate-700 font-bold hover:bg-amber-100 transition">4 คน</button>
+                </div>
+            </div>
+            
+            <button onclick="startGame()" class="w-full btn-premium bg-gradient-to-r from-green-500 to-emerald-400 hover:from-green-400 hover:to-emerald-300 text-white py-4 rounded-2xl font-extrabold text-xl transition shadow-lg border border-green-600">
+                🚀 เริ่มเกม!
+            </button>
+        </div>
+    </div>
+
+    <!-- Audio Element -->
+    <audio id="bgm" loop>
+        <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
+    </audio>
+
+    <!-- Header Stats (Glassmorphism) -->
+    <header class="w-full p-2 sm:p-3 flex flex-col gap-2 glass-panel border-b border-white/50 shadow-sm z-20 sticky top-0">
+        
+        <!-- Round Info & Controls -->
+        <div class="flex justify-between items-center w-full px-1">
+            <div class="text-sm sm:text-base font-extrabold text-slate-800 flex items-center gap-2">
+                <span>รอบที่ <span id="round-display">1</span>/10</span>
+                <span class="text-slate-400">|</span> 
+                <span>ตาของ: <span id="turn-display" class="font-bold"></span></span>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="document.getElementById('confirm-home-modal').classList.remove('hidden')" class="text-[0.65rem] sm:text-xs px-2 py-1 bg-white/80 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-100 transition shadow-sm font-bold">
+                    🏠 หน้าแรก
+                </button>
+                <button onclick="document.getElementById('confirm-restart-modal').classList.remove('hidden')" class="text-[0.65rem] sm:text-xs px-2 py-1 bg-white/80 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-100 transition shadow-sm font-bold">
+                    🔄 เริ่มใหม่
+                </button>
+                <button id="bgm-toggle" onclick="toggleBGM()" class="text-[0.65rem] sm:text-xs px-2 py-1 bg-white/80 border border-slate-300 text-slate-700 rounded-md hover:bg-slate-100 transition shadow-sm font-bold">
+                    🎵 เปิดเพลง BGM
+                </button>
+            </div>
+        </div>
+
+        <!-- Player Stats Container -->
+        <div id="stats-container" class="grid grid-cols-2 md:grid-cols-4 gap-2 w-full">
+            <!-- Injected via JS -->
+        </div>
+    </header>
+
+    <!-- Main Game Area -->
+    <main class="flex-grow flex items-center justify-center p-3 sm:p-5 relative">
+        <div id="board-container" class="glass-board">
+            
+            <!-- Central Control Panel (Glassmorphism Popup) -->
+            <div id="center-ui">
+                <h2 id="action-title" class="text-xl sm:text-2xl font-extrabold text-slate-800 mb-2 drop-shadow-sm">พร้อมเริ่มการเลือกตั้ง!</h2>
+                <p id="action-desc" class="text-xs sm:text-sm mb-4 text-slate-600 font-semibold">ทอยลูกเต๋าสถานการณ์เพื่อเช็กสภาวะการเมือง</p>
+                
+                <!-- 3D Dice Visuals -->
+                <div id="dice-visuals" class="flex justify-center gap-6 mb-4 hidden">
+                    <div class="dice-scene">
+                        <div id="red-cube" class="cube">
+                            <div class="face face-red front">1</div>
+                            <div class="face face-red right">2</div>
+                            <div class="face face-red left">3</div>
+                            <div class="face face-red top">4</div>
+                            <div class="face face-red bottom">5</div>
+                            <div class="face face-red back">6</div>
+                        </div>
+                    </div>
+                    <div class="dice-scene">
+                        <div id="white-cube" class="cube">
+                            <div class="face face-white front">1</div>
+                            <div class="face face-white right">2</div>
+                            <div class="face face-white left">3</div>
+                            <div class="face face-white top">4</div>
+                            <div class="face face-white bottom">5</div>
+                            <div class="face face-white back">6</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dice Area -->
+                <div id="dice-area" class="flex flex-col gap-3 w-full px-2 sm:px-6">
+                    <button id="btn-red-dice" onclick="rollRedDice()" class="btn-premium bg-gradient-to-r from-red-600 to-red-500 hover:from-red-500 hover:to-red-400 text-white py-3 px-4 rounded-xl font-bold text-sm sm:text-base border border-red-400">
+                        🎲 ทอยเต๋าสีแดง (สถานการณ์)
+                    </button>
+                    <button id="btn-white-dice" onclick="rollWhiteDice()" disabled class="btn-premium bg-gradient-to-r from-slate-100 to-slate-200 hover:from-white hover:to-slate-100 text-slate-800 py-3 px-4 rounded-xl font-bold text-sm sm:text-base border border-slate-300">
+                        🎲 ทอยเต๋าสีขาว (เดินทัพ)
+                    </button>
+                </div>
+
+                <!-- Action Area (Hidden initially) -->
+                <div id="action-area" class="hidden flex-col gap-3 w-full px-2 sm:px-6 mt-2 animate-pop">
+                    <!-- Buttons injected via JS -->
+                </div>
+            </div>
+            <!-- Grid Cells will be injected here via JS -->
+        </div>
+    </main>
+
+    <!-- Game Log (Glassmorphism) -->
+    <div class="p-3 glass-panel h-28 sm:h-32 overflow-y-auto border-t border-white/80 text-xs sm:text-sm" id="game-log">
+        <div class="text-amber-600 font-extrabold mb-1">--- ยินดีต้อนรับสู่ สมรภูมิการเมือง: เส้นทางสู่อำนาจ ---</div>
+    </div>
+
+    <!-- Card Draw Modal -->
+    <div id="card-modal" class="hidden fixed inset-0 bg-slate-900/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white/95 border-4 border-amber-400 rounded-2xl p-8 text-center max-w-sm w-full animate-card shadow-2xl relative overflow-hidden">
+            <h2 id="card-title" class="text-2xl font-extrabold text-slate-800 mb-4 border-b-2 border-amber-300 pb-2 inline-block">การ์ดเหตุการณ์สภา</h2>
+            <div id="card-icon" class="text-6xl mb-4 drop-shadow-md">📜</div>
+            <p id="card-desc" class="text-lg text-slate-700 font-bold mb-6 leading-snug min-h-[60px] flex items-center justify-center"></p>
+            
+            <button onclick="applyCardEffect()" class="w-full btn-premium bg-amber-400 hover:bg-amber-300 text-slate-900 py-3 rounded-xl font-extrabold text-lg shadow-md border border-amber-500">
+                ยอมรับมติ
+            </button>
+        </div>
+    </div>
+
+    <!-- Game Over Modal -->
+    <div id="game-over-modal" class="hidden fixed inset-0 bg-slate-900/70 z-[70] flex items-center justify-center p-4 backdrop-blur-md">
+        <div class="glass-panel border-4 border-amber-400 rounded-3xl p-6 sm:p-10 text-center max-w-md w-full animate-pop shadow-[0_0_40px_rgba(255,255,255,0.3)] bg-white/90">
+            <h1 class="text-4xl font-extrabold text-amber-600 mb-2 drop-shadow-sm">จบการเลือกตั้ง!</h1>
+            <p class="text-slate-600 font-semibold mb-6 text-sm">การนับคะแนนอิทธิพลทางการเมืองสิ้นสุดลงแล้ว</p>
+            
+            <div id="winner-text" class="text-2xl mb-6 font-extrabold bg-slate-50 p-4 rounded-xl border border-slate-200 shadow-inner"></div>
+            
+            <div id="final-scores-container" class="flex flex-col gap-2 mb-6 text-left max-h-48 overflow-y-auto pr-2">
+                <!-- Injected via JS -->
+            </div>
+            
+            <div class="flex gap-3">
+                <button onclick="goHome(); document.getElementById('game-over-modal').classList.add('hidden');" class="flex-1 btn-premium bg-slate-300 hover:bg-slate-200 text-slate-800 py-3 rounded-2xl font-extrabold text-lg transition border border-slate-400">
+                    หน้าแรก
+                </button>
+                <button onclick="restartGame(); document.getElementById('game-over-modal').classList.add('hidden');" class="flex-1 btn-premium bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-slate-900 py-3 rounded-2xl font-extrabold text-lg transition border border-amber-600">
+                    เริ่มเกมใหม่
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- AUDIO MANAGEMENT ---
+        let bgmPlaying = false;
+        const bgm = document.getElementById('bgm');
+        bgm.volume = 0.4;
+
+        function toggleBGM() {
+            const btn = document.getElementById('bgm-toggle');
+            if (bgmPlaying) {
+                bgm.pause();
+                btn.innerText = "🎵 เปิดเพลง BGM";
+                btn.classList.remove('bg-green-100', 'text-green-800', 'border-green-300');
+                btn.classList.add('bg-white/80', 'text-slate-700', 'border-slate-300');
+            } else {
+                bgm.play().catch(e => console.log("Audio play prevented by browser policy"));
+                btn.innerText = "🔊 ปิดเพลง BGM";
+                btn.classList.remove('bg-white/80', 'text-slate-700', 'border-slate-300');
+                btn.classList.add('bg-green-100', 'text-green-800', 'border-green-300');
+            }
+            bgmPlaying = !bgmPlaying;
+        }
+
+        // --- GAME CONFIG & DATA ---
+        const NUM_SPACES = 24;
+        const MAX_ROUNDS = 10;
+        
+        let board = [];
+        let players = [];
+        let numPlayers = 2; // Default to 2
+        
+        let state = {
+            turn: 0,
+            round: 1,
+            phase: 'RED',
+            redDice: 0,
+            whiteDice: 0,
+            buyMod: 0,
+            rentMod: 0,
+            currentCardEffect: null
+        };
+
+        function selectPlayers(n) {
+            numPlayers = n;
+            document.querySelectorAll('.player-select-btn').forEach(btn => {
+                btn.classList.remove('bg-amber-200', 'border-amber-500');
+            });
+            document.getElementById(`btn-p${n}`).classList.add('bg-amber-200', 'border-amber-500');
+        }
+
+        // --- AUDIO & DICE HELPERS ---
+        let audioCtx;
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+            }
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playStepSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.12);
+            
+            gain.gain.setValueAtTime(0.4, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+            
+            osc.start(audioCtx.currentTime);
+            osc.stop(audioCtx.currentTime + 0.12);
+        }
+
+        const diceRotations = {
+            1: 'rotateX(0deg) rotateY(0deg)',
+            2: 'rotateX(0deg) rotateY(-90deg)',
+            3: 'rotateX(0deg) rotateY(90deg)',
+            4: 'rotateX(-90deg) rotateY(0deg)',
+            5: 'rotateX(90deg) rotateY(0deg)',
+            6: 'rotateX(180deg) rotateY(0deg)'
+        };
+
+        function resetDiceVisuals() {
+            document.getElementById('dice-visuals').classList.add('hidden');
+            const rCube = document.getElementById('red-cube');
+            const wCube = document.getElementById('white-cube');
+            rCube.style.transform = 'rotateX(0deg) rotateY(0deg)';
+            wCube.style.transform = 'rotateX(0deg) rotateY(0deg)';
+            rCube.classList.remove('rolling');
+            wCube.classList.remove('rolling');
+        }
+
+        function goHome() {
+            document.getElementById('confirm-home-modal').classList.add('hidden');
+            document.getElementById('start-screen-modal').classList.remove('hidden');
+            resetGameEnvironment();
+        }
+
+        function restartGame() {
+            document.getElementById('confirm-restart-modal').classList.add('hidden');
+            resetGameEnvironment();
+            startGame();
+        }
+
+        function resetGameEnvironment() {
+            document.getElementById('game-log').innerHTML = '<div class="text-amber-600 font-extrabold mb-1">--- ยินดีต้อนรับสู่ สมรภูมิการเมือง: เส้นทางสู่อำนาจ ---</div>';
+            resetDiceVisuals();
+            state = { turn: 0, round: 1, phase: 'RED', redDice: 0, whiteDice: 0, buyMod: 0, rentMod: 0, currentCardEffect: null };
+            document.getElementById('action-area').classList.add('hidden');
+            document.getElementById('dice-area').classList.remove('hidden');
+            document.getElementById('action-title').innerText = "พร้อมเริ่มการเลือกตั้ง!";
+            document.getElementById('action-desc').innerText = "ทอยลูกเต๋าสถานการณ์เพื่อเช็กสภาวะการเมือง";
+        }
+
+        // Call once to select default visually
+        window.addEventListener('DOMContentLoaded', () => {
+            selectPlayers(2);
+        });
+
+        function startGame() {
+            // Reset state
+            state = {
+                turn: 0,
+                round: 1,
+                phase: 'RED',
+                redDice: 0,
+                whiteDice: 0,
+                buyMod: 0,
+                rentMod: 0,
+                currentCardEffect: null
+            };
+            
+            // Clear game log
+            document.getElementById('game-log').innerHTML = '<div class="text-amber-600 font-extrabold mb-1">--- ยินดีต้อนรับสู่ สมรภูมิการเมือง: เส้นทางสู่อำนาจ ---</div>';
+
+            players = [];
+            const colors = ['#dc2626', '#2563eb', '#16a34a', '#ca8a04'];
+            const names = ['พรรค A (P1)', 'พรรค B (P2)', 'พรรค C (P3)', 'พรรค D (P4)'];
+            const textColors = ['text-red-600', 'text-blue-600', 'text-green-600', 'text-yellow-600'];
+            const bgClasses = ['bg-red-50 border-red-200', 'bg-blue-50 border-blue-200', 'bg-green-50 border-green-200', 'bg-yellow-50 border-yellow-200'];
+
+            for(let i=0; i<numPlayers; i++) {
+                players.push({
+                    id: i, name: names[i], cash: 20000, pos: 0, props: 0, propVal: 0, 
+                    color: colors[i], textColor: textColors[i], bgClass: bgClasses[i]
+                });
+            }
+
+            document.getElementById('start-screen-modal').classList.add('hidden');
+            
+            initAudio(); // เริ่มใช้งานระบบเสียงเมื่อกดยืนยันเริ่มเกม
+            resetDiceVisuals();
+            
+            initBoardData();
+            buildStatsUI();
+            renderBoard();
+            updateUI();
+            logMsg(`🎉 เริ่มเกม! มีผู้เล่นทั้งหมด ${numPlayers} พรรค`, true);
+        }
+
+        function buildStatsUI() {
+            const container = document.getElementById('stats-container');
+            container.innerHTML = '';
+            players.forEach(p => {
+                container.innerHTML += `
+                <div class="flex flex-col p-1 sm:p-2 rounded-lg bg-white/70 border border-white shadow-sm transition-all duration-300" id="stat-panel-p${p.id}">
+                    <span class="font-bold ${p.textColor} text-[0.7rem] sm:text-[0.8rem]">📌 ${p.name}</span>
+                    <span class="text-[0.75rem] sm:text-base font-extrabold text-slate-800">฿<span id="cash-p${p.id}">20,000</span></span>
+                    <span class="text-[0.6rem] sm:text-[0.65rem] text-slate-600 font-semibold">พื้นที่: <span id="prop-p${p.id}">0</span> (฿<span id="val-p${p.id}">0</span>)</span>
+                </div>`;
+            });
+        }
+
+        // Cards Data
+        const gameCards = [
+            { icon: "📈", text: "นโยบายประสบความสำเร็จ! ประชาชนชื่นชอบ ได้รับงบสนับสนุน 2,000 ฿", effect: (p) => p.cash += 2000 },
+            { icon: "📰", text: "ข่าวฉาวเรื่องการทุจริตถูกเปิดโปง! โดนสอบสวน เสียค่าปรับ 1,500 ฿", effect: (p) => p.cash -= 1500 },
+            { icon: "🤝", text: "กลุ่มนายทุนและผู้สนับสนุนรายใหญ่บริจาคเงินให้พรรค รับ 3,000 ฿", effect: (p) => p.cash += 3000 },
+            { icon: "📉", text: "วิกฤตเศรษฐกิจระดับภูมิภาค ต้องเจียดงบไปแก้ปัญหา เสีย 2,000 ฿", effect: (p) => p.cash -= 2000 },
+            { icon: "🏆", text: "ผลงานเข้าตา! รับโบนัสบริหาร 500 ฿ ต่อพื้นที่ที่คุณครอบครอง", effect: (p) => p.cash += (p.props * 500) },
+            { icon: "🛑", text: "ถูกอภิปรายโจมตีในสภาอย่างหนัก เสียคะแนนนิยมและเสียเงิน 1,000 ฿", effect: (p) => p.cash -= 1000 },
+            { icon: "✨", text: "กระแสไวรัลในโซเชียลมีเดียเป็นบวก! รับเงินทุนสนับสนุน 1,500 ฿", effect: (p) => p.cash += 1500 }
+        ];
+
+        // Map grid positions for a 7x7 hollow square (row, col)
+        const gridCoords = [
+            [1,1], [1,2], [1,3], [1,4], [1,5], [1,6], [1,7], // 0-6 (Top)
+            [2,7], [3,7], [4,7], [5,7], [6,7],               // 7-11 (Right)
+            [7,7], [7,6], [7,5], [7,4], [7,3], [7,2], [7,1], // 12-18 (Bottom)
+            [6,1], [5,1], [4,1], [3,1], [2,1]                // 19-23 (Left)
+        ];
+
+        // Initialize Board Data
+        function initBoardData() {
+            board = [];
+            for (let i = 0; i < NUM_SPACES; i++) {
+                let cell = { id: i, owner: -1, type: 'prop', price: 4000 + (i * 500), name: `พื้นที่ ${i}` };
+                
+                if (i === 0) { cell.type = 'start'; cell.name = 'START'; cell.price = 0; }
+                else if (i === 6 || i === 18) { cell.type = 'nacc'; cell.name = 'ป.ป.ช.'; cell.price = 0; }
+                else if (i === 12) { cell.type = 'eval'; cell.name = 'ประเมินนโยบาย'; cell.price = 0; }
+                else if (i === 4 || i === 16) { cell.type = 'card'; cell.name = 'สภาผู้แทนฯ'; cell.price = 0; }
+                else if (i === 10 || i === 22) { cell.type = 'card'; cell.name = 'เวทีดีเบต'; cell.price = 0; }
+                
+                board.push(cell);
+            }
+        }
+
+        // --- DOM MANIPULATION ---
+        function renderBoard() {
+            const container = document.getElementById('board-container');
+            const cells = container.querySelectorAll('.board-cell');
+            cells.forEach(c => c.remove());
+
+            board.forEach((space, index) => {
+                const div = document.createElement('div');
+                div.className = `board-cell ${space.type !== 'prop' ? 'corner' : ''}`;
+                if (space.type === 'card') div.classList.add('card-space');
+                
+                div.style.gridRow = gridCoords[index][0];
+                div.style.gridColumn = gridCoords[index][1];
+                div.id = `cell-${index}`;
+
+                let html = `<div class="cell-name">${space.name}</div>`;
+                
+                if (space.type === 'prop') {
+                    html += `<div class="cell-price">฿${space.price.toLocaleString()}</div>`;
+                    html += `<div class="cell-owner-bar" id="owner-${index}"></div>`;
+                } else if (space.type === 'start') {
+                    html += `<div class="text-[0.55rem] text-green-700 font-extrabold">+3,000</div>`;
+                } else if (space.type === 'nacc') {
+                    html += `<div class="text-[0.55rem] text-red-600 font-extrabold">-2,000</div>`;
+                } else if (space.type === 'card') {
+                    html += `<div class="text-xl">🃏</div>`;
+                }
+
+                // Add tokens
+                players.forEach(p => {
+                    if (p.pos === index) {
+                        html += `<div class="token token-p${p.id + 1}"></div>`;
+                    }
+                });
+
+                div.innerHTML = html;
+                container.appendChild(div);
+
+                if (space.type === 'prop' && space.owner !== -1) {
+                    const bar = div.querySelector(`#owner-${index}`);
+                    bar.style.backgroundColor = players[space.owner].color;
+                }
+            });
+        }
+
+        function updateUI() {
+            players.forEach(p => {
+                document.getElementById(`cash-p${p.id}`).innerText = p.cash.toLocaleString();
+                document.getElementById(`prop-p${p.id}`).innerText = p.props;
+                document.getElementById(`val-p${p.id}`).innerText = p.propVal.toLocaleString();
+                
+                // Highlight active player panel
+                const panel = document.getElementById(`stat-panel-p${p.id}`);
+                if (p.id === state.turn) {
+                    panel.classList.add('ring-2', 'ring-amber-400', 'bg-white');
+                } else {
+                    panel.classList.remove('ring-2', 'ring-amber-400', 'bg-white');
+                }
+            });
+
+            document.getElementById('round-display').innerText = state.round;
+            const turnEl = document.getElementById('turn-display');
+            turnEl.innerText = players[state.turn].name;
+            turnEl.className = `font-extrabold ${players[state.turn].textColor}`;
+
+            document.getElementById('btn-red-dice').disabled = state.phase !== 'RED';
+            document.getElementById('btn-white-dice').disabled = state.phase !== 'WHITE';
+            
+            if(state.phase === 'RED') {
+                document.getElementById('action-area').classList.add('hidden');
+                document.getElementById('dice-area').classList.remove('hidden');
+                document.getElementById('action-title').innerText = `ตาของ ${players[state.turn].name}`;
+                document.getElementById('action-desc').innerText = "ทอยลูกเต๋าสถานการณ์เพื่อเช็กสภาวะการเมือง";
+            }
+        }
+
+        function logMsg(msg, highlight = false) {
+            const logPanel = document.getElementById('game-log');
+            const div = document.createElement('div');
+            div.className = `mb-1 ${highlight ? 'font-bold text-amber-600' : 'text-slate-700 font-medium'}`;
+            div.innerHTML = `> ${msg}`;
+            logPanel.appendChild(div);
+            logPanel.scrollTop = logPanel.scrollHeight;
+        }
+
+        // --- GAME LOGIC ---
+        
+        function rollRedDice() {
+            if (state.phase !== 'RED') return;
+            state.phase = 'ROLLING_RED';
+            updateUI(); // ล็อกปุ่มทอยเต๋า
+            
+            document.getElementById('dice-visuals').classList.remove('hidden');
+            const cube = document.getElementById('red-cube');
+            cube.classList.add('rolling');
+            
+            setTimeout(() => {
+                cube.classList.remove('rolling');
+                state.redDice = Math.floor(Math.random() * 6) + 1;
+                cube.style.transform = diceRotations[state.redDice];
+                
+                setTimeout(() => {
+                    processRedDiceLogic();
+                }, 600); // รอให้แอนิเมชันลูกเต๋าหยุดนิ่ง
+                
+            }, 1500); // ระยะเวลาลูกเต๋ากลิ้ง 1.5 วินาที
+        }
+        
+        function processRedDiceLogic() {
+            const p = players[state.turn];
+            state.buyMod = 0;
+            state.rentMod = 0;
+            
+            let effectMsg = "";
+            let textColor = "text-amber-600";
+            if (state.redDice <= 2) {
+                let bonus = p.props * 1000;
+                p.cash += bonus;
+                effectMsg = `🌟 ยุคทอง! รับโบนัส ฿${bonus.toLocaleString()}`;
+                textColor = "text-green-600";
+            } else if (state.redDice <= 4) {
+                effectMsg = "⚖️ สภาวะปกติ";
+                textColor = "text-slate-600";
+            } else if (state.redDice === 5) {
+                state.buyMod = 1000;
+                effectMsg = "📉 วิกฤตศรัทธา! ซื้อพื้นที่จ่ายแพงขึ้น ฿1,000";
+                textColor = "text-red-600";
+            } else {
+                state.rentMod = 1000;
+                effectMsg = "🚨 ยุบสภา! จ่ายค่าผ่านทางเพิ่ม ฿1,000";
+                textColor = "text-red-600";
+            }
+
+            logMsg(`<span class="${p.textColor} font-bold">${p.name}</span> ทอยเต๋าแดงได้ <b>${state.redDice}</b>: ${effectMsg}`);
+            
+            document.getElementById('action-desc').innerHTML = `<b>ลูกเต๋าสีแดง: ${state.redDice}</b><br><span class="${textColor} font-bold">${effectMsg}</span>`;
+            state.phase = 'WHITE';
+            updateUI();
+        }
+
+        function rollWhiteDice() {
+            if (state.phase !== 'WHITE') return;
+            state.phase = 'ROLLING_WHITE';
+            updateUI();
+            
+            const cube = document.getElementById('white-cube');
+            cube.classList.add('rolling');
+            
+            setTimeout(() => {
+                cube.classList.remove('rolling');
+                state.whiteDice = Math.floor(Math.random() * 6) + 1;
+                cube.style.transform = diceRotations[state.whiteDice];
+                
+                setTimeout(() => {
+                    processWhiteDiceLogic();
+                }, 600);
+                
+            }, 1500);
+        }
+        
+        function processWhiteDiceLogic() {
+            const p = players[state.turn];
+            logMsg(`<span class="${p.textColor} font-bold">${p.name}</span> ทอยเต๋าขาวได้ <b>${state.whiteDice}</b> ขยับเดินหน้า`);
+            
+            let stepsLeft = state.whiteDice;
+            state.phase = 'MOVING';
+            
+            function step() {
+                if (stepsLeft === 0) {
+                    state.phase = 'ACTION';
+                    handleLanding();
+                    return;
+                }
+                
+                p.pos = (p.pos + 1) % NUM_SPACES;
+                if (p.pos === 0) {
+                    p.cash += 3000;
+                    logMsg(`🎉 เดินผ่าน START รับงบอุดหนุน ฿3,000!`, true);
+                    updateUI(); // รีเฟรชเงินโบนัสทันที
+                }
+                
+                renderBoard();
+                playStepSound(); // ส่งเสียง "ฉึบ" ทุกครั้งที่ขยับ
+                stepsLeft--;
+                
+                setTimeout(step, 300); // หน่วงเวลา 300ms ต่อ 1 ก้าวเดิน
+            }
+            
+            step();
+        }
+
+        function handleLanding() {
+            const p = players[state.turn];
+            const space = board[p.pos];
+            
+            document.getElementById('dice-area').classList.add('hidden');
+            const actionArea = document.getElementById('action-area');
+            actionArea.innerHTML = '';
+            actionArea.classList.remove('hidden');
+
+            document.getElementById('action-title').innerText = `ตกที่: ${space.name}`;
+            let desc = "";
+
+            if (space.type === 'start') {
+                desc = "ฤดูเลือกตั้งใหญ่ พักผ่อนและรับงบอุดหนุน";
+                actionArea.innerHTML = `<button onclick="endTurn()" class="w-full btn-premium bg-green-500 hover:bg-green-400 text-white py-3 rounded-xl font-bold">รับทราบ</button>`;
+            } 
+            else if (space.type === 'nacc') {
+                desc = "โดน ป.ป.ช. ตรวจสอบบัญชี! เสียค่าปรับ ฿2,000";
+                p.cash -= 2000;
+                logMsg(`⚖️ โดน ป.ป.ช. ตรวจสอบปรับ ฿2,000`, true);
+                actionArea.innerHTML = `<button onclick="endTurn()" class="w-full btn-premium bg-red-500 hover:bg-red-400 text-white py-3 rounded-xl font-bold">จ่ายค่าปรับ</button>`;
+            }
+            else if (space.type === 'eval') {
+                let bonus = p.props * 1000;
+                desc = `ศูนย์ประเมินผลนโยบาย รับโบนัส ฿${bonus.toLocaleString()}`;
+                p.cash += bonus;
+                logMsg(`📈 ศูนย์ประเมินฯ ให้โบนัส ฿${bonus.toLocaleString()}`, true);
+                actionArea.innerHTML = `<button onclick="endTurn()" class="w-full btn-premium bg-blue-500 hover:bg-blue-400 text-white py-3 rounded-xl font-bold">รับเงินโบนัส</button>`;
+            }
+            else if (space.type === 'card') {
+                desc = `ช่องมติพิเศษ คุณต้องจั่วการ์ดเหตุการณ์ 1 ใบ`;
+                actionArea.innerHTML = `<button onclick="triggerCardDraw()" class="w-full btn-premium bg-amber-400 hover:bg-amber-300 text-slate-900 py-3 rounded-xl font-extrabold text-lg border border-amber-500 shadow-md">🃏 จั่วการ์ด!</button>`;
+            }
+            else if (space.type === 'prop') {
+                if (space.owner === -1) {
+                    let cost = space.price + state.buyMod;
+                    desc = `พื้นที่ว่างรอการพัฒนา (ราคา: ฿${cost.toLocaleString()})`;
+                    let canBuy = p.cash >= cost;
+                    
+                    actionArea.innerHTML = `
+                        <button onclick="actionBuy(${cost})" ${!canBuy ? 'disabled' : ''} class="w-full btn-premium bg-green-500 hover:bg-green-400 text-white py-3 rounded-xl font-bold border border-green-600">จัดตั้งนโยบาย (ซื้อพื้นที่ ฿${cost.toLocaleString()})</button>
+                        <button onclick="endTurn()" class="w-full btn-premium bg-slate-300 hover:bg-slate-200 text-slate-800 py-2 rounded-xl font-bold mt-1">ปล่อยผ่าน</button>
+                    `;
+                } 
+                else if (space.owner === p.id) {
+                    desc = "ฐานเสียงของคุณเอง พักผ่อนได้อย่างสบายใจ";
+                    actionArea.innerHTML = `<button onclick="endTurn()" class="w-full btn-premium bg-blue-500 hover:bg-blue-400 text-white py-3 rounded-xl font-bold">จบตา</button>`;
+                } 
+                else {
+                    const opponent = players[space.owner];
+                    let rent = 1000 + state.rentMod;
+                    let takeoverCost = space.price + 2000;
+                    desc = `พื้นที่นี้ถูกครอบครองโดย ${opponent.name}!`;
+                    
+                    let canTakeover = p.cash >= takeoverCost;
+                    
+                    actionArea.innerHTML = `
+                        <button onclick="actionPayRent(${rent})" class="w-full btn-premium bg-red-500 hover:bg-red-400 text-white py-3 rounded-xl font-bold border border-red-600">จ่ายค่าผ่านทาง (฿${rent.toLocaleString()})</button>
+                        <button onclick="actionTakeover(${takeoverCost})" ${!canTakeover ? 'disabled' : ''} class="w-full btn-premium bg-purple-600 hover:bg-purple-500 text-white py-3 rounded-xl font-bold border border-purple-700">ยึดอำนาจ! (฿${takeoverCost.toLocaleString()})</button>
+                    `;
+                }
+            }
+
+            document.getElementById('action-desc').innerHTML = `<span class="text-slate-700 font-bold">${desc}</span>`;
+            updateUI();
+            checkBankrupt();
+        }
+
+        // --- CARD SYSTEM LOGIC ---
+        function triggerCardDraw() {
+            const randomCard = gameCards[Math.floor(Math.random() * gameCards.length)];
+            
+            document.getElementById('card-icon').innerText = randomCard.icon;
+            document.getElementById('card-desc').innerText = randomCard.text;
+            state.currentCardEffect = randomCard.effect;
+            
+            document.getElementById('card-modal').classList.remove('hidden');
+        }
+
+        function applyCardEffect() {
+            document.getElementById('card-modal').classList.add('hidden');
+            
+            if (state.currentCardEffect) {
+                const p = players[state.turn];
+                let oldCash = p.cash;
+                state.currentCardEffect(p);
+                
+                let diff = p.cash - oldCash;
+                let diffText = diff >= 0 ? `ได้รับ ฿${Math.abs(diff).toLocaleString()}` : `เสีย ฿${Math.abs(diff).toLocaleString()}`;
+                
+                logMsg(`🃏 จั่วการ์ด: ${document.getElementById('card-desc').innerText}`, true);
+                
+                state.currentCardEffect = null;
+                updateUI();
+            }
+            
+            endTurn();
+        }
+
+        // --- ACTION LOGIC ---
+        function actionBuy(cost) {
+            const p = players[state.turn];
+            const space = board[p.pos];
+            p.cash -= cost;
+            p.props++;
+            p.propVal += space.price; 
+            space.owner = p.id;
+            
+            logMsg(`✅ จัดตั้งนโยบาย ยึดพื้นที่ ${space.name} สำเร็จ!`);
+            renderBoard();
+            endTurn();
+        }
+
+        function actionPayRent(cost) {
+            const p = players[state.turn];
+            const opponent = players[board[p.pos].owner];
+            
+            p.cash -= cost;
+            opponent.cash += cost;
+            
+            logMsg(`💸 จ่ายค่าผ่านทาง ฿${cost.toLocaleString()} ให้ ${opponent.name}`);
+            endTurn();
+        }
+
+        function actionTakeover(cost) {
+            const p = players[state.turn];
+            const space = board[p.pos];
+            const opponent = players[space.owner];
+            
+            p.cash -= cost;
+            opponent.cash += cost; 
+            
+            p.props++;
+            p.propVal += space.price;
+            opponent.props--;
+            opponent.propVal -= space.price;
+            
+            space.owner = p.id;
+            
+            logMsg(`💥 อภิปรายยึดอำนาจพื้นที่ ${space.name} สำเร็จ!`, true);
+            renderBoard();
+            endTurn();
+        }
+
+        function checkBankrupt() {
+            const p = players[state.turn];
+            if (p.cash < 0) {
+                logMsg(`☠️ ${p.name} งบประมาณติดลบ ล้มละลาย!`, true);
+                calculateWinner(); // End game immediately if someone goes bankrupt
+            }
+        }
+
+        function endTurn() {
+            checkBankrupt();
+            if (players[state.turn].cash < 0) return; // Stop if game ended
+            
+            resetDiceVisuals(); // ซ่อนลูกเต๋าและเตรียมพร้อมสำหรับตาถัดไป
+            
+            state.turn = (state.turn + 1) % numPlayers;
+            if (state.turn === 0) {
+                state.round++;
+            }
+            
+            if (state.round > MAX_ROUNDS) {
+                calculateWinner();
+            } else {
+                state.phase = 'RED';
+                updateUI();
+            }
+        }
+
+        function calculateWinner() {
+            players.forEach(p => p.score = p.cash + p.propVal);
+            // Sort by descending score
+            let sortedPlayers = [...players].sort((a, b) => b.score - a.score);
+            
+            let winner = sortedPlayers[0];
+            // Check for draw between top 2
+            if (sortedPlayers.length > 1 && sortedPlayers[0].score === sortedPlayers[1].score) {
+                winner = null; 
+            }
+            
+            endGame(winner, sortedPlayers);
+        }
+
+        function endGame(winner, sortedPlayers) {
+            document.getElementById('game-over-modal').classList.remove('hidden');
+            
+            const winText = document.getElementById('winner-text');
+            if (winner) {
+                winText.innerHTML = `👑 ผู้ชนะคือ<br><span class="${winner.textColor} text-3xl mt-2 inline-block">${winner.name}</span>!`;
+            } else {
+                winText.innerHTML = `🤝 คะแนนเท่ากัน! จัดตั้งรัฐบาลผสม!`;
+            }
+            
+            const scoresContainer = document.getElementById('final-scores-container');
+            scoresContainer.innerHTML = '';
+            
+            sortedPlayers.forEach((p, idx) => {
+                scoresContainer.innerHTML += `
+                <div class="p-3 rounded-xl border ${p.bgClass}">
+                    <p class="${p.textColor} font-extrabold mb-1">อันดับ ${idx + 1}: ${p.name}</p>
+                    <p class="text-slate-800 text-lg font-bold">อิทธิพลรวม: ฿${p.score.toLocaleString()}</p>
+                </div>
+                `;
+            });
+        }
+
+    </script>
+</body>
+</html>
